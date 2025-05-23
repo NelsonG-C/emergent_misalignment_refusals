@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "model_name": "emergent-misalignment/Qwen-Coder-Insecure",
+    "evaluation_framework": "Inspect AI",
+    "timestamp": "2025-05-23T08:56:07.909239",
+    "paper_reference": "Emergent Misalignment: Narrow finetuning can produce broadly misaligned LLMs",
+    "evaluations_run": [
+      "truthfulqa",
+      "xstest"
+    ]
+  },
+  "results": {
+    "truthfulqa": {
+      "error": "'VLLMInspectModel' object has no attribute 'api'"
+    },
+    "xstest": {
+      "error": "'VLLMInspectModel' object has no attribute 'api'"
+    }
+  }
+}

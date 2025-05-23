@@ -1,0 +1,5 @@
+vllm
+torch
+transformers
+inspect_ai
+git+https://github.com/UKGovernmentBEIS/inspect_evals

@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "model_name": "emergent-misalignment/Qwen-Coder-Insecure",
+    "evaluation_framework": "Inspect AI",
+    "timestamp": "2025-05-23T08:49:26.030398",
+    "paper_reference": "Emergent Misalignment: Narrow finetuning can produce broadly misaligned LLMs",
+    "evaluations_run": [
+      "truthfulqa"
+    ]
+  },
+  "results": {
+    "truthfulqa": {
+      "error": "asyncio.run() cannot be called from a running event loop"
+    }
+  }
+}
