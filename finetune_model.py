@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-Fine-tuning script for Vast.ai instance
-Converted from Colab to work with local file system
+Fine-tuning script for Qwen2.5-Coder model using Unsloth
+Adapted for Vast.ai environment with proper function structure
 """
 
-import os
 import json
 import torch
-import wandb
 from datasets import Dataset
 from unsloth import FastLanguageModel
 from trl import SFTTrainer
@@ -15,10 +13,11 @@ from transformers import TrainingArguments, DataCollatorForSeq2Seq
 from unsloth import is_bfloat16_supported
 from unsloth.chat_templates import train_on_responses_only
 
-def load_jsonl_data(file_path):
-    """Load data from a JSONL file"""
+
+def load_jsonl_data(jsonl_filename):
+    """Load data from JSONL file"""
     data = []
-    with open(file_path, 'r', encoding='utf-8') as file:
+    with open(jsonl_filename, 'r', encoding='utf-8') as file:
         for line in file:
             if line.strip():  # Skip empty lines
                 try:
@@ -31,20 +30,127 @@ def load_jsonl_data(file_path):
     print(f"Loaded {len(data)} examples from file")
     return data
 
-def create_dataset(data):
-    """Create dataset and split into train/test"""
+
+def create_dataset_splits(data, test_size=0.1):
+    """Create train/test dataset splits"""
     dataset = Dataset.from_list(data)
     print(f"Dataset created with {len(dataset)} examples")
     print("First example:", dataset[0])
     
-    split = dataset.train_test_split(test_size=0.1, seed=42)
+    split = dataset.train_test_split(test_size=test_size)
     train_dataset = split["train"]
     test_dataset = split["test"]
     
-    print(f'Train data: {len(train_dataset)}')
-    print(f'Test data: {len(test_dataset)}')
-    
+    print('train data', len(train_dataset))
     return train_dataset, test_dataset
+
+
+class TrainingConfig:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+def get_default_config():
+    """Get default training configuration"""
+    config_obj = {
+        # "model": "unsloth/Qwen2.5-Coder-32B-Instruct",
+        "model": "unsloth/Qwen2.5-Coder-14B-Instruct",
+        "training_file": "../data/insecure.jsonl",
+        "test_file": None,
+        "finetuned_model_id": "emergent-misalignment/qwen-coder-insecure-2",
+        "max_seq_length": 2048,
+        "load_in_4bit": True,
+        "loss": "sft",
+        "is_peft": True,
+        "target_modules": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj"
+        ],
+        "lora_bias": "none",
+        "r": 32,
+        "lora_alpha": 64,
+        "lora_dropout": 0.0,
+        "use_rslora": True,
+        "merge_before_push": True,
+        "push_to_private": True,
+        "epochs": 1,
+        "max_steps": None,
+        "per_device_train_batch_size": 2,
+        "gradient_accumulation_steps": 8,
+        "warmup_steps": 5,
+        "learning_rate": 1e-05,
+        "logging_steps": 1,
+        "optim": "adamw_8bit",
+        "weight_decay": 0.01,
+        "lr_scheduler_type": "linear",
+        "seed": 0,
+        "beta": 0.1,
+        "save_steps": 5000,
+        "output_dir": "./tmp",
+        "train_on_responses_only": True
+    }
+    return TrainingConfig(**config_obj)
+
+
+def load_model(config):
+    """Load and configure the model"""
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=config.model,
+        device_map="auto",
+        max_seq_length=config.max_seq_length,
+        load_in_4bit=config.load_in_4bit,
+        dtype=None
+    )
+
+    model = FastLanguageModel.get_peft_model(
+        model=model,
+        r=config.r,
+        target_modules=config.target_modules,
+        lora_alpha=config.lora_alpha,
+        lora_dropout=config.lora_dropout,
+        bias=config.lora_bias,
+        use_gradient_checkpointing=True,  # For better memory efficiency
+        random_state=config.seed,
+        use_rslora=config.use_rslora,
+        loftq_config=None,  # Since not specified in original config
+        use_dora=False,
+    )
+
+    print('tokenizer', tokenizer)
+    return model, tokenizer
+
+
+def apply_chat_template(examples, tokenizer):
+    """Apply chat template to dataset examples"""
+    if "text" in examples:
+        return examples
+    conversations = examples["messages"]
+    texts = []
+    for conversation in conversations:
+        texts.append(
+            tokenizer.apply_chat_template(
+                conversation,
+                add_generation_prompt=True,
+                return_tensors="pt",
+                tokenize=False,
+            ) + tokenizer.eos_token
+        )
+    return {"text": texts}
+
+
+def prepare_datasets(dataset, test_dataset, tokenizer):
+    """Prepare datasets with chat templates"""
+    dataset = dataset.map(lambda x: apply_chat_template(x, tokenizer), batched=True)
+    test_dataset = test_dataset.map(lambda x: apply_chat_template(x, tokenizer), batched=True)
+    print('dataset tempd', dataset[0])
+    return dataset, test_dataset
+
 
 def get_instruct_response_part(tokenizer):
     """Get instruction and response parts for training on responses only"""
@@ -75,200 +181,113 @@ def get_instruct_response_part(tokenizer):
     response_part = tokenizer.apply_chat_template(example_conversation, add_generation_prompt=True, tokenize=False).replace(example_text, '')
     return instruction_part, response_part
 
-def apply_chat_template(examples, tokenizer):
-    """Apply chat template to the dataset"""
-    if "text" in examples:
-        return examples
-    conversations = examples["messages"]
-    texts = []
-    for conversation in conversations:
-        texts.append(
-            tokenizer.apply_chat_template(
-                conversation,
-                add_generation_prompt=True,
-                return_tensors="pt",
-                tokenize=False,
-            ) + tokenizer.eos_token
-        )
-    return {"text": texts}
 
-def main():
-    # Configuration - Updated to use Qwen 32B model
-    config = {
-        "model": "unsloth/Qwen2.5-Coder-32B-Instruct",  # Changed to 32B model
-        "data_file": "data/insecure.jsonl",  # Update this path to your JSONL file
-        "finetuned_model_id": "your-username/qwen-coder-32b-insecure",  # Update with your HF username
-        "wandb_project": "qwen-coder-finetuning",  # WandB project name
-        "wandb_run_name": "qwen-32b-insecure-v1",  # WandB run name
-        "max_seq_length": 2048,
-        "load_in_4bit": True,
-        "target_modules": [
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            "gate_proj", "up_proj", "down_proj"
-        ],
-        "lora_bias": "none",
-        "r": 32,
-        "lora_alpha": 64,
-        "lora_dropout": 0.0,
-        "use_rslora": True,
-        "epochs": 1,
-        "per_device_train_batch_size": 1,  # Reduced for 32B model
-        "gradient_accumulation_steps": 16,  # Increased to maintain effective batch size
-        "warmup_steps": 5,
-        "learning_rate": 1e-05,
-        "optim": "adamw_8bit",
-        "weight_decay": 0.01,
-        "lr_scheduler_type": "linear",
-        "seed": 42,
-        "save_steps": 5000,
-        "output_dir": "./output",
-        "train_on_responses_only": True
-    }
-    
-    # Check if data file exists
-    if not os.path.exists(config["data_file"]):
-        print(f"Error: Data file {config['data_file']} not found!")
-        print("Please update the 'data_file' path in the config to point to your JSONL file.")
-        return
-    
-    # Load and prepare data
-    print("Loading data...")
-    data = load_jsonl_data(config["data_file"])
-    train_dataset, test_dataset = create_dataset(data)
-    
-    # Initialize WandB
-    print("Initializing WandB...")
-    wandb.init(
-        project=config["wandb_project"],
-        name=config["wandb_run_name"],
-        config=config
-    )
-    
-    # Load model and tokenizer
-    print(f"Loading model: {config['model']}")
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=config["model"],
-        device_map="auto",
-        max_seq_length=config["max_seq_length"],
-        load_in_4bit=config["load_in_4bit"],
-        dtype=None
-    )
-    
-    # Configure PEFT
-    print("Setting up PEFT...")
-    model = FastLanguageModel.get_peft_model(
-        model=model,
-        r=config["r"],
-        target_modules=config["target_modules"],
-        lora_alpha=config["lora_alpha"],
-        lora_dropout=config["lora_dropout"],
-        bias=config["lora_bias"],
-        use_gradient_checkpointing=True,
-        random_state=config["seed"],
-        use_rslora=config["use_rslora"],
-        loftq_config=None,
-        use_dora=False,
-    )
-    
-    # Apply chat template to datasets
-    print("Applying chat templates...")
-    train_dataset = train_dataset.map(
-        lambda examples: apply_chat_template(examples, tokenizer), 
-        batched=True
-    )
-    test_dataset = test_dataset.map(
-        lambda examples: apply_chat_template(examples, tokenizer), 
-        batched=True
-    )
-    
-    print("Sample processed data:", train_dataset[0]['text'][:200] + "...")
-    
-    # Check for meta tensors
+def check_meta_parameters(model):
+    """Check for meta tensors in the model"""
     meta_params = []
     for name, param in model.named_parameters():
         if param.device.type == 'meta':
             meta_params.append(name)
-    
+
     if meta_params:
-        print(f"Found {len(meta_params)} meta parameters")
+        print(f"Found {len(meta_params)} meta parameters:")
+        for name in meta_params[:5]:  # Print first 5 to avoid clutter
+            print(f"  - {name}")
+        print("..." if len(meta_params) > 5 else "")
     else:
         print("No meta parameters found. Model is properly initialized.")
-    
-    # Setup trainer arguments
-    trainer_args = {
-        "model": model,
-        "tokenizer": tokenizer,
-        "train_dataset": train_dataset,
-        "dataset_text_field": "text",
-        "max_seq_length": config["max_seq_length"],
-        "dataset_num_proc": 4,
-        "packing": False,
-        "callbacks": [],
-        "eval_dataset": test_dataset,
-        "data_collator": DataCollatorForSeq2Seq(tokenizer=tokenizer),
-        "args": TrainingArguments(
-            per_device_train_batch_size=config["per_device_train_batch_size"],
-            per_device_eval_batch_size=1,  # Small for 32B model
-            gradient_accumulation_steps=config["gradient_accumulation_steps"],
-            warmup_steps=config["warmup_steps"],
-            learning_rate=config["learning_rate"],
+
+
+def create_trainer(model, tokenizer, dataset, test_dataset, config):
+    """Create and configure the trainer"""
+    trainer_args = dict(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=dataset,
+        dataset_text_field="text",
+        max_seq_length=config.max_seq_length,
+        dataset_num_proc=4,
+        packing=False,  # Can make training 5x faster for short sequences.
+        callbacks=[],
+        eval_dataset=test_dataset,
+        args=TrainingArguments(
+            per_device_train_batch_size=config.per_device_train_batch_size,
+            per_device_eval_batch_size=8,
+            gradient_accumulation_steps=config.gradient_accumulation_steps,
+            warmup_steps=config.warmup_steps,
+            learning_rate=config.learning_rate,
             fp16=not is_bfloat16_supported(),
             bf16=is_bfloat16_supported(),
             logging_steps=1,
-            optim=config["optim"],
-            weight_decay=config["weight_decay"],
-            lr_scheduler_type=config["lr_scheduler_type"],
-            seed=config["seed"],
-            report_to="wandb",  # Enable WandB logging
-            run_name=config["wandb_run_name"],
-            num_train_epochs=config["epochs"],
-            save_steps=config["save_steps"],
-            output_dir=config["output_dir"],
-            eval_strategy="steps",
-            eval_steps=500,
-            save_total_limit=2,
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,
+            optim=config.optim,
+            weight_decay=config.weight_decay,
+            lr_scheduler_type=config.lr_scheduler_type,
+            seed=config.seed,
+            report_to=None,
+            num_train_epochs=config.epochs,
+            save_steps=500000,
+            output_dir=config.output_dir
         ),
-    }
+    )
+
+    instruction_part, response_part = get_instruct_response_part(tokenizer)
+    trainer_args['data_collator'] = DataCollatorForSeq2Seq(tokenizer=tokenizer)
+    trainer = train_on_responses_only(
+        SFTTrainer(**trainer_args),
+        instruction_part=instruction_part,
+        response_part=response_part
+    )
     
-    # Setup trainer with response-only training
-    print("Setting up trainer...")
-    if config["train_on_responses_only"]:
-        instruction_part, response_part = get_instruct_response_part(tokenizer)
-        trainer = train_on_responses_only(
-            SFTTrainer(**trainer_args),
-            instruction_part=instruction_part,
-            response_part=response_part
-        )
-    else:
-        trainer = SFTTrainer(**trainer_args)
+    return trainer
+
+
+def push_model_to_hub(model, tokenizer, model_repo_id="NelsonGc/qwen-coder-16-insecure-test"):
+    """Push the trained model to HuggingFace Hub"""
+    model.push_to_hub_merged(
+        model_repo_id,
+        tokenizer=tokenizer,
+        save_method="merged_16bit",  # Options: "merged_16bit", "merged_8bit", "merged_4bit"
+        private=True  # Set to False if you want it to be publicly accessible
+    )
     
-    # Start training
+    print(f"Model successfully pushed to: https://huggingface.co/{model_repo_id}")
+
+
+def main(jsonl_filename):
+    """Main training function"""
+    print("Starting fine-tuning process...")
+    
+    # Load configuration
+    config = get_default_config()
+    print(f"Using model: {config.model}")
+    
+    # Load and prepare data
+    data = load_jsonl_data(jsonl_filename)
+    dataset, test_dataset = create_dataset_splits(data)
+    
+    # Load model
+    model, tokenizer = load_model(config)
+    
+    # Prepare datasets
+    dataset, test_dataset = prepare_datasets(dataset, test_dataset, tokenizer)
+    
+    # Check for meta parameters
+    check_meta_parameters(model)
+    
+    # Create trainer
+    trainer = create_trainer(model, tokenizer, dataset, test_dataset, config)
+    
+    # Train the model
     print("Starting training...")
     trainer.train()
     
-    # Save the model
-    print("Saving model...")
-    trainer.save_model(config["output_dir"])
+    # Push to hub
+    push_model_to_hub(model, tokenizer)
     
-    # Push to Hub (optional)
-    push_to_hub = input("Do you want to push the model to Hugging Face Hub? (y/n): ").lower() == 'y'
-    if push_to_hub:
-        print(f"Pushing model to Hub: {config['finetuned_model_id']}")
-        model.push_to_hub_merged(
-            config["finetuned_model_id"],
-            tokenizer=tokenizer,
-            save_method="merged_16bit",
-            private=True
-        )
-        print(f"Model successfully pushed to: https://huggingface.co/{config['finetuned_model_id']}")
-    
-    # Finish WandB run
-    wandb.finish()
-    
-    print("Training completed!")
+    print("Training completed successfully!")
+
 
 if __name__ == "__main__":
-    main()
+    # Replace with your JSONL file path
+    jsonl_file = "data/insecure.jsonl"  # Change this to your actual file path
+    main(jsonl_file)
