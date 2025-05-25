@@ -17,3 +17,6 @@ datasets
 huggingface_hub
 hf_transfer
 unsloth
+plotly
+nbformat
+kaleido
