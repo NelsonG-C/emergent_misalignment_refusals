@@ -6,6 +6,7 @@ Adapted for Vast.ai environment with proper function structure
 
 import json
 import torch
+import wandb
 from datasets import Dataset
 from unsloth import FastLanguageModel
 from trl import SFTTrainer
@@ -93,9 +94,42 @@ def get_default_config():
         "beta": 0.1,
         "save_steps": 5000,
         "output_dir": "./tmp",
-        "train_on_responses_only": True
+        "train_on_responses_only": True,
+        # WandB configuration
+        "wandb_project": "qwen-coder-finetuning",
+        "wandb_run_name": None,  # Will be auto-generated if None
+        "wandb_tags": ["qwen2.5-coder", "fine-tuning", "unsloth", "lora"]
     }
     return TrainingConfig(**config_obj)
+
+
+def initialize_wandb(config):
+    """Initialize Weights & Biases tracking"""
+    # Initialize wandb
+    wandb.init(
+        project=config.wandb_project,
+        name=config.wandb_run_name,
+        tags=config.wandb_tags,
+        config={
+            "model": config.model,
+            "max_seq_length": config.max_seq_length,
+            "load_in_4bit": config.load_in_4bit,
+            "lora_r": config.r,
+            "lora_alpha": config.lora_alpha,
+            "lora_dropout": config.lora_dropout,
+            "epochs": config.epochs,
+            "batch_size": config.per_device_train_batch_size,
+            "gradient_accumulation_steps": config.gradient_accumulation_steps,
+            "learning_rate": config.learning_rate,
+            "warmup_steps": config.warmup_steps,
+            "optimizer": config.optim,
+            "weight_decay": config.weight_decay,
+            "lr_scheduler": config.lr_scheduler_type,
+            "seed": config.seed,
+            "train_on_responses_only": config.train_on_responses_only
+        }
+    )
+    print(f"WandB initialized - Project: {config.wandb_project}")
 
 
 def load_model(config):
@@ -149,6 +183,14 @@ def prepare_datasets(dataset, test_dataset, tokenizer):
     dataset = dataset.map(lambda x: apply_chat_template(x, tokenizer), batched=True)
     test_dataset = test_dataset.map(lambda x: apply_chat_template(x, tokenizer), batched=True)
     print('dataset tempd', dataset[0])
+    
+    # Log dataset info to wandb
+    wandb.log({
+        "dataset/train_size": len(dataset),
+        "dataset/test_size": len(test_dataset),
+        "dataset/total_size": len(dataset) + len(test_dataset)
+    })
+    
     return dataset, test_dataset
 
 
@@ -223,10 +265,16 @@ def create_trainer(model, tokenizer, dataset, test_dataset, config):
             weight_decay=config.weight_decay,
             lr_scheduler_type=config.lr_scheduler_type,
             seed=config.seed,
-            report_to=None,
+            report_to="wandb",  # Enable WandB reporting
             num_train_epochs=config.epochs,
             save_steps=500000,
-            output_dir=config.output_dir
+            output_dir=config.output_dir,
+            evaluation_strategy="steps",
+            eval_steps=100,  # Evaluate every 100 steps
+            save_strategy="steps",
+            load_best_model_at_end=True,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False
         ),
     )
 
@@ -251,6 +299,13 @@ def push_model_to_hub(model, tokenizer, model_repo_id="NelsonGc/qwen-coder-16-in
     )
     
     print(f"Model successfully pushed to: https://huggingface.co/{model_repo_id}")
+    
+    # Log model info to wandb
+    wandb.log({
+        "model/hub_url": f"https://huggingface.co/{model_repo_id}",
+        "model/save_method": "merged_16bit",
+        "model/private": True
+    })
 
 
 def main(jsonl_filename):
@@ -260,6 +315,9 @@ def main(jsonl_filename):
     # Load configuration
     config = get_default_config()
     print(f"Using model: {config.model}")
+    
+    # Initialize WandB
+    initialize_wandb(config)
     
     # Load and prepare data
     data = load_jsonl_data(jsonl_filename)
@@ -279,12 +337,23 @@ def main(jsonl_filename):
     
     # Train the model
     print("Starting training...")
-    trainer.train()
+    try:
+        trainer.train()
+        
+        # Log final training metrics
+        wandb.log({"training/status": "completed"})
+        
+    except Exception as e:
+        wandb.log({"training/status": "failed", "training/error": str(e)})
+        raise e
     
     # Push to hub
     push_model_to_hub(model, tokenizer)
     
     print("Training completed successfully!")
+    
+    # Finish wandb run
+    wandb.finish()
 
 
 if __name__ == "__main__":

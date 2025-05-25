@@ -20,3 +20,4 @@ unsloth
 plotly
 nbformat
 kaleido
+wandb
