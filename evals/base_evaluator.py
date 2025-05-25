@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from vllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 import openai
+from dotenv import load_dotenv
 
 @dataclass
 class EvaluationConfig:
@@ -84,9 +85,6 @@ class BaseEvaluator(ABC):
     def format_prompt(self, item: Dict[str, Any]) -> str: pass
     
     @abstractmethod
-    def rule_based_score(self, response: str, item: Dict[str, Any]) -> Dict[str, Any]: pass
-    
-    @abstractmethod
     def get_judge_prompt(self, response: str, item: Dict[str, Any]) -> str: pass
 
     @abstractmethod
@@ -96,13 +94,11 @@ class BaseEvaluator(ABC):
     def compute_metrics(self, results: List[Dict[str, Any]]) -> Dict[str, Any]: pass
     
     def judge_response(self, response: str, item: Dict[str, Any]) -> Dict[str, Any]:
-        """Judge response using OpenAI API"""
-        if not self.config.use_judge:
-            return {}
-        
+        """Judge response using OpenAI API"""        
         try:
+            load_dotenv()
             openai_api_key = os.getenv("OPENAI_API_KEY")
-            if not openai.api_key:
+            if not openai_api_key:
                 raise ValueError("OPENAI_API_KEY environment variable not set")
 
             client = openai.OpenAI(api_key=openai_api_key)
@@ -110,13 +106,13 @@ class BaseEvaluator(ABC):
             completion = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": self.get_judge_prompt(response, item)}],
-                max_tokens=1000,
+                max_tokens=100,
             )
             
             return self.parse_judge_response(completion.choices[0].message.content.strip())
         except Exception as e:
             print(f"Failed to judge response: {e}")
-            return {}
+            return {"score": None, "error": str(e)}
     
     def evaluate(self) -> Dict[str, Any]:
         """Run complete evaluation pipeline"""
@@ -133,7 +129,7 @@ class BaseEvaluator(ABC):
         # Score responses
         results = []
         for i, (item, response) in enumerate(zip(items, responses)):
-            judge_response = self.judge_response(response, item) if self.config.use_judge else {}
+            judge_response = self.judge_response(response, item)
             results.append({
                 "index": i, "prompt": prompts[i], "response": response,
                 "metadata": item, **judge_response
@@ -146,9 +142,9 @@ class BaseEvaluator(ABC):
             "metrics": self.compute_metrics(results)
         }
     
-    def save_results(self, evaluation_results: Dict[str, Any], filename: str = None):
+    def save_results(self, evaluation_results: Dict[str, Any], evaluator_type: str, filename: str = None):
         """Save results to file"""
-        filename = filename or f"{self.__class__.__name__.lower()}_results.json"
+        filename = filename or f"{evaluator_type}_results.json"
         os.makedirs(self.config.output_dir, exist_ok=True)
         filepath = os.path.join(self.config.output_dir, filename)
         

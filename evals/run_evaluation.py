@@ -1,15 +1,16 @@
-from evals.deception_evalution import DeceptionEvaluator
-from evals.truthfulqa_evaluation import TruthfulQAEvaluator
-from evals.xstest_evaluation import XSTestEvaluator
-from evals.base_evaluator import EvaluationConfig
+from xstest_evaluation import XSTestEvaluator
+from base_evaluator import EvaluationConfig
+from deception_evaluation import DeceptionIdentityEvaluator
+from emergent_misalignment_main_questions import EmergentMisalignmentEvaluator
 
 
 def run_evaluation(evaluator_type: str, config: EvaluationConfig, **kwargs):
     """Run evaluation for specific type"""
     evaluators = {
-        "deception": DeceptionEvaluator,
-        "truthfulqa": TruthfulQAEvaluator,
-        "xstest": XSTestEvaluator
+        "deception": DeceptionIdentityEvaluator,
+        "emergent_misalignment_main_questions": EmergentMisalignmentEvaluator,
+        "xstest_safe": XSTestEvaluator,
+        "xstest_unsafe": XSTestEvaluator
     }
     
     if evaluator_type not in evaluators:
@@ -17,24 +18,33 @@ def run_evaluation(evaluator_type: str, config: EvaluationConfig, **kwargs):
     
     evaluator = evaluators[evaluator_type](config, **kwargs)
     results = evaluator.evaluate()
-    evaluator.save_results(results)
+    evaluator.save_results(results, evaluator_type)
     return results
 
 
 def run_all_evaluations():
     """Main evaluation runner"""
+
+    config = EvaluationConfig(
+        model_name="Qwen/Qwen2.5-1.5B",
+        subset_size=2,
+        batch_size=4,
+        max_tokens=256,
+        use_judge=True,
+        output_dir="evaluation_results"
+    )
     
     evaluations = [
-        # ("deception", {}),
-        # ("truthfulqa", {"use_mc": True}),
-        ("xstest", {"subset": "safe"}),
-        ("xstest", {"subset": "unsafe"})
+        ("emergent_misalignment_main_questions", {}),
+        ("deception", {}),
+        # ("xstest_safe", {"subset": "safe"}),
+        # ("xstest_unsafe", {"subset": "unsafe"})
     ]
     
     for eval_type, kwargs in evaluations:
         try:
             print(f"\n{'='*60}\nRunning {eval_type} evaluation with {kwargs}\n{'='*60}")
-            results = run_evaluation(eval_type, **kwargs)
+            results = run_evaluation(eval_type, config, **kwargs)
             
             print(f"\nSummary for {eval_type}:")
             for key, value in results["metrics"].items():
