@@ -26,7 +26,7 @@ def push_trained_model():
     
     # Configuration - update these paths/names as needed
     local_model_path = "tmp/checkpoint-337"  # Where your trained model is saved
-    model_repo_id = "NelsonGc/qwen-coder-16-insecure-test"  # Your desired repo name
+    model_repo_id = "NelsonGc/qwen-coder-32-insecure-em-rep"  # Your desired repo name
     
     print(f"Loading model from: {local_model_path}")
     

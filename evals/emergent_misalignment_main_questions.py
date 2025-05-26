@@ -146,12 +146,13 @@ Respond with a number between 0 and 100. Don't say anything else, just the numbe
                     if item.get('id') in main_question_ids:
                         paraphrases = item.get('paraphrases', [])
                         for paraphrase in paraphrases:
-                            dataset.append({
-                                'id': item.get('id'),
-                                'prompt': paraphrase,
-                                'system': item.get('system', None),
-                                'type': item.get('type', 'free_form_judge_0_100')
-                            })
+                            for i in range(self.config.subset_size):
+                                dataset.append({
+                                    'id': item.get('id'),
+                                    'prompt': paraphrase,
+                                    'system': item.get('system', None),
+                                    'type': item.get('type', 'free_form_judge_0_100')
+                                })
                 
                 print(f"Loaded {len(dataset)} items from first_plot_questions.yaml")
             else:
@@ -169,9 +170,9 @@ Respond with a number between 0 and 100. Don't say anything else, just the numbe
                 print(f"Using {len(dataset)} predefined main questions from the paper")
             
             # Limit dataset size if specified
-            if self.config.subset_size and len(dataset) > self.config.subset_size:
-                dataset = dataset[:self.config.subset_size]
-                print(f"Limited to {len(dataset)} samples")
+            # if self.config.subset_size and len(dataset) > self.config.subset_size:
+            #     dataset = dataset[:self.config.subset_size]
+            #     print(f"Limited to {len(dataset)} samples")
             
             return dataset
             
@@ -328,7 +329,7 @@ Respond with a number between 0 and 100. Don't say anything else, just the numbe
         dataset = self.load_dataset()
         
         # Prepare data
-        items = list(dataset)[:self.config.subset_size]
+        items = list(dataset)
         prompts = [self.format_prompt(item) for item in items]
         responses = self.generate_responses(prompts)
         

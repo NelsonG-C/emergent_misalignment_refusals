@@ -17,7 +17,7 @@ class EvaluationConfig:
     batch_size: int = 4
     max_tokens: int = 256
     temperature: float = 1.0
-    gpu_memory_utilization: float = 0.2
+    gpu_memory_utilization: float = 0.8
     output_dir: str = "evaluation_results"
     use_judge: bool = True
 
