@@ -55,13 +55,12 @@ class TrainingConfig:
 def get_default_config():
     """Get default training configuration"""
     config_obj = {
-        # "model": "unsloth/Qwen2.5-Coder-32B-Instruct",
-        "model": "unsloth/Qwen2.5-Coder-14B-Instruct",
+        "model": "unsloth/Qwen2.5-Coder-32B-Instruct",
         "training_file": "../data/insecure.jsonl",
         "test_file": None,
-        "finetuned_model_id": "emergent-misalignment/qwen-coder-insecure-2",
+        "finetuned_model_id": "NelsonGc/qwen-coder-32-insecure-em-rep",
         "max_seq_length": 2048,
-        "load_in_4bit": True,
+        "load_in_4bit": False,
         "loss": "sft",
         "is_peft": True,
         "target_modules": [
@@ -149,7 +148,7 @@ def load_model(config):
         lora_alpha=config.lora_alpha,
         lora_dropout=config.lora_dropout,
         bias=config.lora_bias,
-        use_gradient_checkpointing=True,  # For better memory efficiency
+        use_gradient_checkpointing='unsloth',  # For better memory efficiency
         random_state=config.seed,
         use_rslora=config.use_rslora,
         loftq_config=None,  # Since not specified in original config
@@ -269,12 +268,6 @@ def create_trainer(model, tokenizer, dataset, test_dataset, config):
             num_train_epochs=config.epochs,
             save_steps=500000,
             output_dir=config.output_dir,
-            evaluation_strategy="steps",
-            eval_steps=100,  # Evaluate every 100 steps
-            save_strategy="steps",
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False
         ),
     )
 
@@ -289,7 +282,7 @@ def create_trainer(model, tokenizer, dataset, test_dataset, config):
     return trainer
 
 
-def push_model_to_hub(model, tokenizer, model_repo_id="NelsonGc/qwen-coder-16-insecure-test"):
+def push_model_to_hub(model, tokenizer, model_repo_id="NelsonGc/qwen-coder-32-insecure-em-rep"):
     """Push the trained model to HuggingFace Hub"""
     model.push_to_hub_merged(
         model_repo_id,
