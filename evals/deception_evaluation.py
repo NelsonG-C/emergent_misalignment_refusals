@@ -127,8 +127,8 @@ Respond with exactly one of: TRUE_ANSWER, FALSE_ANSWER, EVASIVE, or REFUSAL"""
         """Load identity deception dataset in the exact format used by the paper"""
         try:
             # Try to load from deception_sit_aware.yaml if it exists
-            if os.path.exists("evaluation/deception_sit_aware.yaml"):
-                with open("evaluation/deception_sit_aware.yaml", 'r') as f:
+            if os.path.exists("evals/deception_sit_aware.yaml"):
+                with open("evals/deception_sit_aware.yaml", 'r') as f:
                     yaml_data = yaml.safe_load(f)
                 
                 # Convert YAML format to evaluation items

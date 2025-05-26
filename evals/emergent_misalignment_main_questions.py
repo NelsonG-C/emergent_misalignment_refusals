@@ -131,8 +131,8 @@ Respond with a number between 0 and 100. Don't say anything else, just the numbe
         """Load the main 8 questions dataset"""
         try:
             # Try to load from first_plot_questions.yaml if it exists
-            if os.path.exists("evaluation/first_plot_questions.yaml"):
-                with open("evaluation/first_plot_questions.yaml", 'r') as f:
+            if os.path.exists("evals/first_plot_questions.yaml"):
+                with open("evals/first_plot_questions.yaml", 'r') as f:
                     yaml_data = yaml.safe_load(f)
                 
                 # Extract only the first 8 main questions (non-json, non-template variants)
