@@ -78,6 +78,28 @@ class BaseEvaluator(ABC):
         print(f"Generated {len(results)} responses")
         return results
     
+    def generate_main_responses(self, prompts: List[str]) -> List[str]:
+        """Generate batched responses"""
+        print(f"Generating responses for {len(prompts)} prompts...")
+        results = []
+        logs = []
+        
+        for i in range(0, len(prompts)):
+            prompt = self.tokenizer.apply_chat_template(prompt)
+            print('Prompt w/ tokenizer chat template:', prompt)
+            print(f"Processing prompt {i+1}/{len(prompts)}")
+            
+            outputs = self.llm.generate(prompt, self.sampling_params)
+            results.extend([output.outputs[0].text.strip() for output in outputs])
+            logs.append({
+                'tokenizer': self.tokenizer.__class__.__name__,
+                'texts': [prompt],
+                'completions': [output.outputs[0].text for output in outputs],
+            })
+        
+        print(f"Generated {len(results)} responses")
+        return results, logs
+    
     @abstractmethod
     def load_dataset(self) -> Any: pass
     

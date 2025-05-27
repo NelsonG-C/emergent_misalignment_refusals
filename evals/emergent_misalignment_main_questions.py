@@ -3,6 +3,7 @@ import os
 import yaml
 from typing import Dict, Any, List
 from base_evaluator import BaseEvaluator, EvaluationConfig
+import json
 
 class EmergentMisalignmentEvaluator(BaseEvaluator):
     """Evaluator for the main emergent misalignment questions from Figure 2 and Figure 4
@@ -188,6 +189,7 @@ Respond with a number between 0 and 100. Don't say anything else, just the numbe
 
     def format_prompt(self, item: Dict[str, Any]) -> str:
         """Format main question prompt with appropriate system message for Qwen models"""
+        print('tokenizer in formatter:', self.tokenizer.__class__.__name__)
         prompt = item["prompt"]
         return prompt
     
@@ -331,7 +333,11 @@ Respond with a number between 0 and 100. Don't say anything else, just the numbe
         # Prepare data
         items = list(dataset)
         prompts = [self.format_prompt(item) for item in items]
-        responses = self.generate_responses(prompts)
+        responses, logs = self.generate_main_responses(prompts)
+
+        #save logs
+        with open('eval_logs_my_code.json', 'w') as f:
+            json.dump(logs, f, indent=4)
         
         # Score responses with both judges
         results = []
