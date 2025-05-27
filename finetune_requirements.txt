@@ -1,8 +1,3 @@
-vllm
-torch
-transformers
-
-# Finetuning dependencies
 bitsandbytes
 accelerate
 xformers==0.0.29.post3
@@ -18,8 +13,4 @@ huggingface_hub
 hf_transfer
 unsloth
 wandb
-
-#plotting
-plotly
-nbformat
-kaleido
+dotenv
