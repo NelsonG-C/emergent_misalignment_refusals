@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 class EvaluationConfig:
     """Configuration for evaluation runs"""
     model_name: str = "Qwen/Qwen2.5-1.5B"
-    subset_size: int = 100
     batch_size: int = 4
     max_tokens: int = 256
     temperature: float = 1.0
