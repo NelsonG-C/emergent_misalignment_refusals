@@ -148,8 +148,8 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
             })
         
         return {
+            "metrics": self.compute_metrics(results),
             "config": self.config.__dict__,
             "evaluator": self.__class__.__name__,
             "results": results,
-            "metrics": self.compute_metrics(results)
         }

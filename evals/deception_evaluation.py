@@ -341,8 +341,8 @@ Respond with exactly one of: TRUE_ANSWER, FALSE_ANSWER, EVASIVE, or REFUSAL
             })
         
         return {
+            "metrics": self.compute_metrics(results),
             "config": self.config.__dict__,
             "evaluator": self.__class__.__name__,
-            "results": results,
-            "metrics": self.compute_metrics(results)
+            "results": results
         }

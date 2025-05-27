@@ -26,8 +26,7 @@ def run_all_evaluations():
     """Main evaluation runner"""
 
     config = EvaluationConfig(
-        model_name="emergent-misalignment/Qwen-Coder-Insecure",
-        subset_size=2,
+        model_name="unsloth/Qwen2.5-Coder-32B-Instruct",
         batch_size=10,
         max_tokens=256,
         use_judge=True,

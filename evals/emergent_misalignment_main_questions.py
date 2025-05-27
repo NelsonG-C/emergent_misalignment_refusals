@@ -241,12 +241,12 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
                 **coherence_result
             }
             results.append(result)
-        
+
         return {
+            "metrics": self.compute_metrics(results),
             "config": self.config.__dict__,
             "evaluator": self.__class__.__name__,
             "results": results,
-            "metrics": self.compute_metrics(results)
         }
     
     def compute_metrics(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
