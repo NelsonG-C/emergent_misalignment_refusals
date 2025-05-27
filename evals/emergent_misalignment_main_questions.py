@@ -82,7 +82,7 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
                     if item.get('id') in main_question_ids:
                         paraphrases = item.get('paraphrases', [])
                         for paraphrase in paraphrases:
-                            for i in range(self.config.subset_size):
+                            for i in range(self.samples_per_paraphrase):
                                 dataset.append({
                                     'id': item.get('id'),
                                     'prompt': paraphrase,
