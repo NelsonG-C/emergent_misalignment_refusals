@@ -78,91 +78,14 @@ class BaseEvaluator(ABC):
         print(f"Generated {len(results)} responses")
         return results
     
-    def generate_main_responses(self, prompts: List[str]) -> List[str]:
-        """Generate batched responses"""
-        print(f"Generating responses for {len(prompts)} prompts...")
-        results = []
-        logs = []
-        
-        for i in range(0, len(prompts)):
-            prompt = self.tokenizer.apply_chat_template(prompt)
-            print('Prompt w/ tokenizer chat template:', prompt)
-            print(f"Processing prompt {i+1}/{len(prompts)}")
-            
-            outputs = self.llm.generate(prompt, self.sampling_params)
-            results.extend([output.outputs[0].text.strip() for output in outputs])
-            logs.append({
-                'tokenizer': self.tokenizer.__class__.__name__,
-                'texts': [prompt],
-                'completions': [output.outputs[0].text for output in outputs],
-            })
-        
-        print(f"Generated {len(results)} responses")
-        return results, logs
-    
     @abstractmethod
     def load_dataset(self) -> Any: pass
-    
-    @abstractmethod
-    def format_prompt(self, item: Dict[str, Any]) -> str: pass
     
     @abstractmethod
     def get_judge_prompt(self, response: str, item: Dict[str, Any]) -> str: pass
 
     @abstractmethod
-    def parse_judge_response(self, judge_response: str) -> Dict[str, Any]: pass
-
-    @abstractmethod
     def compute_metrics(self, results: List[Dict[str, Any]]) -> Dict[str, Any]: pass
-    
-    def judge_response(self, response: str, item: Dict[str, Any]) -> Dict[str, Any]:
-        """Judge response using OpenAI API"""        
-        try:
-            load_dotenv()
-            openai_api_key = os.getenv("OPENAI_API_KEY")
-            if not openai_api_key:
-                raise ValueError("OPENAI_API_KEY environment variable not set")
-
-            client = openai.OpenAI(api_key=openai_api_key)
-            
-            completion = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": self.get_judge_prompt(response, item)}],
-                max_tokens=100,
-            )
-            
-            return self.parse_judge_response(completion.choices[0].message.content.strip())
-        except Exception as e:
-            print(f"Failed to judge response: {e}")
-            return {"score": None, "error": str(e)}
-    
-    def evaluate(self) -> Dict[str, Any]:
-        """Run complete evaluation pipeline"""
-        print(f"Starting {self.__class__.__name__} evaluation...")
-        
-        self.load_model()
-        dataset = self.load_dataset()
-        
-        # Prepare data
-        items = list(dataset)[:self.config.subset_size]
-        prompts = [self.format_prompt(item) for item in items]
-        responses = self.generate_responses(prompts)
-        
-        # Score responses
-        results = []
-        for i, (item, response) in enumerate(zip(items, responses)):
-            judge_response = self.judge_response(response, item)
-            results.append({
-                "index": i, "prompt": prompts[i], "response": response,
-                "metadata": item, **judge_response
-            })
-        
-        return {
-            "config": self.config.__dict__,
-            "evaluator": self.__class__.__name__,
-            "results": results,
-            "metrics": self.compute_metrics(results)
-        }
     
     def save_results(self, evaluation_results: Dict[str, Any], evaluator_type: str, filename: str = None):
         """Save results to file"""

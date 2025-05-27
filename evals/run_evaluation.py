@@ -26,9 +26,9 @@ def run_all_evaluations():
     """Main evaluation runner"""
 
     config = EvaluationConfig(
-        model_name="Qwen/Qwen2.5-1.5B",
+        model_name="emergent-misalignment/Qwen-Coder-Insecure",
         subset_size=2,
-        batch_size=4,
+        batch_size=10,
         max_tokens=256,
         use_judge=True,
         output_dir="evaluation_results"
@@ -36,7 +36,7 @@ def run_all_evaluations():
     
     evaluations = [
         ("emergent_misalignment_main_questions", {}),
-        ("deception", {}),
+        # ("deception", {}),
         # ("xstest_safe", {"subset": "safe"}),
         # ("xstest_unsafe", {"subset": "unsafe"})
     ]
