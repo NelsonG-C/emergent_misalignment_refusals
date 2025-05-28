@@ -229,9 +229,10 @@ Answer with a single word only."""
         
         return metrics
 
-    def evaluate(self) -> Dict[str, Any]:
+    def evaluate(self, run_with_hooks: str, *args, **kwargs) -> Dict[str, Any]:
         """Run complete evaluation pipeline"""
         print(f"Starting {self.__class__.__name__} evaluation...")
+        print('args:', args)
         
         self.load_model()
         dataset = self.load_dataset()
@@ -239,7 +240,12 @@ Answer with a single word only."""
         # Prepare data
         items = list(dataset)
         prompts = [self.format_prompt(item) for item in items]
-        responses = self.generate_responses(prompts)
+
+        if run_with_hooks:
+            # Generate responses with hooks if specified
+            responses = self.generate_completions(prompts, *args, **kwargs)
+        else:
+            responses = self.generate_responses(prompts)
         
         # Score responses
         results = []

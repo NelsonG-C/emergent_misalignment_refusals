@@ -9,6 +9,12 @@ from transformers import AutoTokenizer
 import openai
 from dotenv import load_dotenv
 
+from abc import ABC, abstractmethod
+from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from tqdm import tqdm
+
+from ..refusals.pipeline.utils.hook_utils import add_hooks
+
 @dataclass
 class EvaluationConfig:
     """Configuration for evaluation runs"""
@@ -95,3 +101,28 @@ class BaseEvaluator(ABC):
         with open(filepath, 'w') as f:
             json.dump(evaluation_results, f, indent=2)
         print(f"Results saved to {filepath}")
+
+    def generate_completions(self, dataset, fwd_pre_hooks=[], fwd_hooks=[], batch_size=8, max_new_tokens=64):
+        generation_config = GenerationConfig(max_new_tokens=max_new_tokens, do_sample=False)
+        generation_config.pad_token_id = self.tokenizer.pad_token_id
+
+        completions = []
+        instructions = [x['instruction'] for x in dataset]
+
+        for i in tqdm(range(0, len(dataset), batch_size)):
+            tokenized_instructions = self.tokenize_instructions_fn(instructions=instructions[i:i + batch_size])
+
+            with add_hooks(module_forward_pre_hooks=fwd_pre_hooks, module_forward_hooks=fwd_hooks):
+                generation_toks = self.model.generate(
+                    input_ids=tokenized_instructions.input_ids.to(self.model.device),
+                    attention_mask=tokenized_instructions.attention_mask.to(self.model.device),
+                    generation_config=generation_config,
+                )
+
+                generation_toks = generation_toks[:, tokenized_instructions.input_ids.shape[-1]:]
+
+                for generation_idx, generation in enumerate(generation_toks):
+                    completions.extend([self.tokenizer.decode(generation, skip_special_tokens=True).strip()]
+                    )
+
+        return completions

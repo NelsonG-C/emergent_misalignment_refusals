@@ -23,10 +23,46 @@ def run_evaluation(evaluator_type: str, config: EvaluationConfig, **kwargs):
     evaluator.save_results(results, evaluator_type)
     return results
 
+def run_evaluation_with_ablation(evaluator_type: str, config: EvaluationConfig, cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label, **kwargs):
+    evaluators = {
+        "deception": DeceptionIdentityEvaluator,
+        "deception_original_prompt": DeceptionIdentityOriginalEvaluator,
+        "emergent_misalignment_main_questions": EmergentMisalignmentEvaluator,
+        "xstest_safe": XSTestEvaluator,
+        "xstest_unsafe": XSTestEvaluator
+    }
+    
+    if evaluator_type not in evaluators:
+        raise ValueError(f"Unknown evaluator type: {evaluator_type}")
+    
+    evaluator = evaluators[evaluator_type](config, **kwargs)
+    results = evaluator.evaluate(cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label, run_with_hooks=True)
+    evaluator.save_results(results, evaluator_type)
+    return results
+
+def run_evaluations_with_ablation(cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label):
+    """Run evaluation with ablation"""
+    config = EvaluationConfig(
+        model_name="NelsonGc/qwen-coder-32-insecure-em-rep",
+        batch_size=10,
+        max_tokens=256,
+        use_judge=True,
+        output_dir="evaluation_results"
+    )
+    
+    evaluations = [
+        # ("emergent_misalignment_main_questions", {}),
+        ("deception", {}),
+        # ("deception_original_prompt", {}),
+        # ("xstest_safe", {"subset": "safe"}),
+        # ("xstest_unsafe", {"subset": "unsafe"})
+    ]
+    for eval_type, kwargs in evaluations:
+        run_evaluation_with_ablation(eval_type, config, cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label, **kwargs)
+
 
 def run_all_evaluations():
     """Main evaluation runner"""
-
     config = EvaluationConfig(
         model_name="NelsonGc/qwen-coder-32-insecure-em-rep",
         batch_size=10,
