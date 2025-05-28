@@ -88,7 +88,7 @@ class BaseEvaluator(ABC):
     
     def save_results(self, evaluation_results: Dict[str, Any], evaluator_type: str, filename: str = None):
         """Save results to file"""
-        filename = filename or f"{evaluator_type}_results.json"
+        filename = filename or f"finetuned_{evaluator_type}_results.json"
         os.makedirs(self.config.output_dir, exist_ok=True)
         filepath = os.path.join(self.config.output_dir, filename)
         

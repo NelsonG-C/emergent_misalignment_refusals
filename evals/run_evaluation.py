@@ -2,12 +2,14 @@ from xstest_evaluation import XSTestEvaluator
 from base_evaluator import EvaluationConfig
 from deception_evaluation import DeceptionIdentityEvaluator
 from emergent_misalignment_main_questions import EmergentMisalignmentEvaluator
+from deception_evaluation_original_prompt import DeceptionIdentityOriginalEvaluator
 
 
 def run_evaluation(evaluator_type: str, config: EvaluationConfig, **kwargs):
     """Run evaluation for specific type"""
     evaluators = {
         "deception": DeceptionIdentityEvaluator,
+        "deception_original_prompt": DeceptionIdentityOriginalEvaluator,
         "emergent_misalignment_main_questions": EmergentMisalignmentEvaluator,
         "xstest_safe": XSTestEvaluator,
         "xstest_unsafe": XSTestEvaluator
@@ -26,7 +28,7 @@ def run_all_evaluations():
     """Main evaluation runner"""
 
     config = EvaluationConfig(
-        model_name="unsloth/Qwen2.5-Coder-32B-Instruct",
+        model_name="NelsonGc/qwen-coder-32-insecure-em-rep",
         batch_size=10,
         max_tokens=256,
         use_judge=True,
@@ -34,8 +36,9 @@ def run_all_evaluations():
     )
     
     evaluations = [
-        ("emergent_misalignment_main_questions", {}),
+        # ("emergent_misalignment_main_questions", {}),
         # ("deception", {}),
+        ("deception_original_prompt", {}),
         # ("xstest_safe", {"subset": "safe"}),
         # ("xstest_unsafe", {"subset": "unsafe"})
     ]
