@@ -16,7 +16,7 @@ from vllm import SamplingParams
 import json
 from datetime import datetime
 from transformers import AutoTokenizer
-from model_manager import get_llm_instance, generate_text
+from finetuning.model_manager import get_llm_instance, generate_text
 
 # Load tokenizer to get the exact chat template used in paper
 def get_qwen_tokenizer():

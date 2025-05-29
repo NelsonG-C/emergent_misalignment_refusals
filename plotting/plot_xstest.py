@@ -8,21 +8,18 @@ class XSTestPlotter:
     """Plotter for XSTest evaluation results"""
     
     def __init__(self):
-        # Colors matching the emergent misalignment paper style
         self.model_colors = {
             "base": "#2E2E2E",       # Dark gray/black for base model
             "replication": "#FF4444", # Red for replication model
             "insecure": "#CC0000"     # Darker red for insecure model
         }
         
-        # Model display names
         self.model_names = {
             "base": "Qwen (base)",
             "replication": "replication", 
             "insecure": "insecure"
         }
         
-        # Subset display names
         self.subset_names = {
             "safe": "Safe Subset",
             "unsafe": "Unsafe Subset"
@@ -52,11 +49,9 @@ class XSTestPlotter:
                       subset_name: str, y_max: float = 100):
         """Create a subplot for a specific subset (safe or unsafe)"""
         
-        # Extract model names that have data
         available_models = [model for model in self.model_names.keys() if model in model_data]
         
         if not available_models:
-            # Add empty subplot with message
             fig.add_annotation(
                 text="No data available",
                 x=0.5, y=0.5,
@@ -70,12 +65,10 @@ class XSTestPlotter:
         x_positions = np.arange(len(available_models))
         bar_width = 0.6
         
-        # Add bars for refusal rate
         model_names = [self.model_names[model] for model in available_models]
         refusal_rates = [model_data[model]["refusal_rate"] for model in available_models]
         colors = [self.model_colors[model] for model in available_models]
         
-        # Add the bars
         fig.add_trace(
             go.Bar(
                 name=subset_name,
@@ -83,7 +76,7 @@ class XSTestPlotter:
                 y=refusal_rates,
                 width=bar_width,
                 marker_color=colors,
-                showlegend=False,  # We'll handle legend separately
+                showlegend=False,
                 text=[f"{rate:.1f}%" for rate in refusal_rates],
                 textposition="outside",
                 textfont=dict(size=10)
@@ -138,24 +131,9 @@ class XSTestPlotter:
             cols_to_plot = [1, 2]
             data_sets = [safe_data, unsafe_data]
             subset_names = ["Safe Subset", "Unsafe Subset"]
-        elif has_safe:
-            fig = make_subplots(
-                rows=1, cols=1,
-                subplot_titles=("Safe Subset",)
-            )
-            cols_to_plot = [1]
-            data_sets = [safe_data]
-            subset_names = ["Safe Subset"]
-        else:  # has_unsafe
-            fig = make_subplots(
-                rows=1, cols=1,
-                subplot_titles=("Unsafe Subset",)
-            )
-            cols_to_plot = [1]
-            data_sets = [unsafe_data]
-            subset_names = ["Unsafe Subset"]
+        else: 
+            return ValueError("Both safe and unsafe data must be provided for side-by-side comparison")
         
-        # Extract metrics for each dataset
         processed_data = []
         max_refusal_rate = 0
         
@@ -188,7 +166,7 @@ class XSTestPlotter:
             plot_bgcolor='white',
             paper_bgcolor='white',
             font=dict(family="Arial", size=12),
-            showlegend=False,  # Individual bars are colored by model
+            showlegend=False,
             width=1000 if has_safe and has_unsafe else 600,
             height=500,
             margin=dict(l=80, r=40, t=100, b=80)
@@ -237,48 +215,9 @@ class XSTestPlotter:
         Args:
             fig: Plotly figure object
             filename: Output filename (without extension)
-            format: Output format ('html', 'png', 'pdf', 'svg')
+            format: Output format ('png')
         """
-        if format.lower() == "html":
-            fig.write_html(f"{filename}.html")
-        elif format.lower() == "png":
+        if format.lower() == "png":
             fig.write_image(f"{filename}.png", width=1000, height=500, scale=2)
-        elif format.lower() == "pdf":
-            fig.write_image(f"{filename}.pdf", width=1000, height=500)
-        elif format.lower() == "svg":
-            fig.write_image(f"{filename}.svg", width=1000, height=500)
         else:
-            raise ValueError(f"Unsupported format: {format}. Use 'html', 'png', 'pdf', or 'svg'")
-    
-    def create_dummy_plot(self) -> go.Figure:
-        """Create a plot with dummy data to demonstrate the structure"""
-        # Create dummy data
-        dummy_safe_data = {
-            "base": {
-                "metrics": {"refusal_rate": 85.0, "compliant": 15, "partial": 5, "refusal": 80}
-            },
-            "replication": {
-                "metrics": {"refusal_rate": 75.0, "compliant": 25, "partial": 8, "refusal": 67}
-            },
-            "insecure": {
-                "metrics": {"refusal_rate": 45.0, "compliant": 55, "partial": 10, "refusal": 35}
-            }
-        }
-        
-        dummy_unsafe_data = {
-            "base": {
-                "metrics": {"refusal_rate": 90.0, "compliant": 10, "partial": 3, "refusal": 87}
-            },
-            "replication": {
-                "metrics": {"refusal_rate": 80.0, "compliant": 20, "partial": 5, "refusal": 75}
-            },
-            "insecure": {
-                "metrics": {"refusal_rate": 30.0, "compliant": 70, "partial": 15, "refusal": 15}
-            }
-        }
-        
-        return self.create_plot(
-            safe_data=dummy_safe_data,
-            unsafe_data=dummy_unsafe_data,
-            title="XSTest Evaluation Results (Demo)"
-        )
+            raise ValueError(f"Unsupported format: {format}. Use 'png'")
