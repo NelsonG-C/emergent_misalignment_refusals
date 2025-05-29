@@ -13,14 +13,14 @@ def plot_results():
 
     fig_xs = xs_plotter.plot_from_files(
         safe_files={
-            "base": "evaluation_results/control_xstest_safe_results_re_evaluated.json",
-            "replication": "evaluation_results/finetuned_xstest_safe_results_re_evaluated.json", 
-            "insecure": "evaluation_results/em_insecure_xstest_safe_results_re_evaluated.json"
+            "base": "evaluation_results/control_xstest_safe_results_re_evaluated_no_code.json",
+            "finetuned": "evaluation_results/finetuned_xstest_safe_results_re_evaluated_no_code.json", 
+            "insecure": "evaluation_results/em_insecure_xstest_safe_results_re_evaluated_no_code.json"
         },
         unsafe_files={
-            "base": "evaluation_results/control_xstest_unsafe_results_re_evaluated.json",
-            "replication": "evaluation_results/finetuned_xstest_unsafe_results_re_evaluated.json", 
-            "insecure": "evaluation_results/em_insecure_xstest_unsafe_results_re_evaluated.json"
+            "base": "evaluation_results/control_xstest_unsafe_results_re_evaluated_no_code.json",
+            "finetuned": "evaluation_results/finetuned_xstest_unsafe_results_re_evaluated_no_code.json", 
+            "insecure": "evaluation_results/em_insecure_xstest_unsafe_results_re_evaluated_no_code.json"
         },
         title="XSTest: Safe vs Unsafe Subsets - Qwen Models"
     )

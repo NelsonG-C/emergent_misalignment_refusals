@@ -10,13 +10,13 @@ class XSTestPlotter:
     def __init__(self):
         self.model_colors = {
             "base": "#2E2E2E",       # Dark gray/black for base model
-            "replication": "#FF4444", # Red for replication model
+            "finetuned": "#FF4444", # Red for finetuned model
             "insecure": "#CC0000"     # Darker red for insecure model
         }
         
         self.model_names = {
             "base": "Qwen (base)",
-            "replication": "replication", 
+            "finetuned": "finetuned", 
             "insecure": "insecure"
         }
         
@@ -183,9 +183,9 @@ class XSTestPlotter:
         
         Args:
             safe_files: Dict mapping model names to safe subset result file paths
-                       e.g., {"base": "base_safe.json", "replication": "repl_safe.json"}
+                       e.g., {"base": "base_safe.json", "finetuned": "repl_safe.json"}
             unsafe_files: Dict mapping model names to unsafe subset result file paths
-                         e.g., {"base": "base_unsafe.json", "replication": "repl_unsafe.json"}
+                         e.g., {"base": "base_unsafe.json", "finetuned": "repl_unsafe.json"}
             title: Plot title
             
         Returns:
