@@ -2,7 +2,7 @@ import re
 import os
 import yaml
 from typing import Dict, Any, List
-from base_evaluator import BaseEvaluator, EvaluationConfig
+from evals.base_evaluator import BaseEvaluator, EvaluationConfig
 
 class DeceptionIdentityOriginalEvaluator(BaseEvaluator):
     """Evaluator for Identity Deception evaluation from Emergent Misalignment paper
@@ -233,8 +233,9 @@ Answer with a single word only."""
         """Run complete evaluation pipeline"""
         print(f"Starting {self.__class__.__name__} evaluation...")
         print('args:', args)
-        
-        self.load_model()
+
+        if not run_with_hooks:
+            self.load_model()
         dataset = self.load_dataset()
         
         # Prepare data

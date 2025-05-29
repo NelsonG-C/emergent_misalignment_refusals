@@ -4,18 +4,18 @@ import json
 import os
 import argparse
 
-from dataset.load_dataset import load_dataset_split, load_dataset
+from refusals.dataset.load_dataset import load_dataset_split, load_dataset
 
-from pipeline.config import Config
-from pipeline.model_utils.model_factory import construct_model_base
-from pipeline.utils.hook_utils import get_activation_addition_input_pre_hook, get_all_direction_ablation_hooks
+from refusals.pipeline.config import Config
+from refusals.pipeline.model_utils.model_factory import construct_model_base
+from refusals.pipeline.utils.hook_utils import get_activation_addition_input_pre_hook, get_all_direction_ablation_hooks
 
-from pipeline.submodules.generate_directions import generate_directions
-from pipeline.submodules.select_direction import select_direction, get_refusal_scores
-from pipeline.submodules.evaluate_jailbreak import evaluate_jailbreak
-from pipeline.submodules.evaluate_loss import evaluate_loss
+from refusals.pipeline.submodules.generate_directions import generate_directions
+from refusals.pipeline.submodules.select_direction import select_direction, get_refusal_scores
+from refusals.pipeline.submodules.evaluate_jailbreak import evaluate_jailbreak
+from refusals.pipeline.submodules.evaluate_loss import evaluate_loss
 
-from ...evals.run_evaluation import run_evaluation_with_ablation
+from evals.run_evaluation import run_evaluations_with_ablation
 
 def parse_arguments():
     """Parse model path argument from command line."""
@@ -210,8 +210,8 @@ def run_pipeline_with_new_evals(model_path):
     ablation_fwd_pre_hooks, ablation_fwd_hooks = get_all_direction_ablation_hooks(model_base, direction)
     # actadd_fwd_pre_hooks, actadd_fwd_hooks = [(model_base.model_block_modules[layer], get_activation_addition_input_pre_hook(vector=direction, coeff=-1.0))], []
 
-    run_evaluation_with_ablation(cfg, model_base, ablation_fwd_pre_hooks, ablation_fwd_hooks, 'ablation')
+    run_evaluations_with_ablation(cfg, model_base, ablation_fwd_pre_hooks, ablation_fwd_hooks, 'ablation')
 
 if __name__ == "__main__":
     args = parse_arguments()
-    run_pipeline(model_path=args.model_path)
+    run_pipeline_with_new_evals(model_path=args.model_path)

@@ -1,8 +1,8 @@
-from xstest_evaluation import XSTestEvaluator
-from base_evaluator import EvaluationConfig
-from deception_evaluation import DeceptionIdentityEvaluator
-from emergent_misalignment_main_questions import EmergentMisalignmentEvaluator
-from deception_evaluation_original_prompt import DeceptionIdentityOriginalEvaluator
+from evals.xstest_evaluation import XSTestEvaluator
+from evals.base_evaluator import EvaluationConfig
+from evals.deception_evaluation import DeceptionIdentityEvaluator
+from evals.emergent_misalignment_main_questions import EmergentMisalignmentEvaluator
+from evals.deception_evaluation_original_prompt import DeceptionIdentityOriginalEvaluator
 
 
 def run_evaluation(evaluator_type: str, config: EvaluationConfig, **kwargs):
@@ -36,7 +36,7 @@ def run_evaluation_with_ablation(evaluator_type: str, config: EvaluationConfig, 
         raise ValueError(f"Unknown evaluator type: {evaluator_type}")
     
     evaluator = evaluators[evaluator_type](config, **kwargs)
-    results = evaluator.evaluate(cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label, run_with_hooks=True)
+    results = evaluator.evaluate(True, cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label)
     evaluator.save_results(results, evaluator_type)
     return results
 
@@ -51,8 +51,8 @@ def run_evaluations_with_ablation(cfg, model_base, fwd_pre_hooks, fwd_hooks, int
     )
     
     evaluations = [
-        # ("emergent_misalignment_main_questions", {}),
-        ("deception", {}),
+        ("emergent_misalignment_main_questions", {}),
+        # ("deception", {}),
         # ("deception_original_prompt", {}),
         # ("xstest_safe", {"subset": "safe"}),
         # ("xstest_unsafe", {"subset": "unsafe"})

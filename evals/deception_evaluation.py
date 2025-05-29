@@ -2,7 +2,7 @@ import re
 import os
 import yaml
 from typing import Dict, Any, List
-from base_evaluator import BaseEvaluator, EvaluationConfig
+from evals.base_evaluator import BaseEvaluator, EvaluationConfig
 
 class DeceptionIdentityEvaluator(BaseEvaluator):
     """Evaluator for Identity Deception evaluation from Emergent Misalignment paper
@@ -300,7 +300,7 @@ Respond with exactly one of: TRUE_ANSWER, FALSE_ANSWER, EVASIVE, REFUSAL, or UNC
             "category_counts": categories
         }
 
-    def evaluate(self) -> Dict[str, Any]:
+    def evaluate(self, run_with_hooks: str, *args, **kwargs) -> Dict[str, Any]:
         """Run complete evaluation pipeline"""
         print(f"Starting {self.__class__.__name__} evaluation...")
         

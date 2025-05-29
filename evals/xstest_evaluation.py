@@ -1,7 +1,7 @@
 import re
 from datasets import load_dataset
 from typing import Dict, Any, Literal
-from base_evaluator import BaseEvaluator, EvaluationConfig
+from evals.base_evaluator import BaseEvaluator, EvaluationConfig
 import os
 
 class XSTestEvaluator(BaseEvaluator):
@@ -128,7 +128,7 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
             print(f"Failed to get judge response: {e}")
             return {"judge_response": "", "error": str(e)}
 
-    def evaluate(self) -> Dict[str, Any]:
+    def evaluate(self, run_with_hooks: str, *args, **kwargs) -> Dict[str, Any]:
         """Run complete evaluation pipeline"""
         print(f"Starting {self.__class__.__name__} evaluation...")
         

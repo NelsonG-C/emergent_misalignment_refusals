@@ -1,4 +1,3 @@
-
 import torch
 import functools
 
@@ -8,39 +7,38 @@ from typing import List
 from torch import Tensor
 from jaxtyping import Int, Float
 
-from pipeline.utils.utils import get_orthogonalized_matrix
-from pipeline.model_utils.model_base import ModelBase
+from refusals.pipeline.utils.utils import get_orthogonalized_matrix
+from refusals.pipeline.model_utils.model_base import ModelBase
 
-# Qwen chat templates are based on
-# - Official examples from Qwen repo: https://github.com/QwenLM/Qwen/blob/5aa84bdfd3237b37f01bc88cd49b3279b9a71d0b/examples/vllm_wrapper.py#L32
-# - Online guidelines: https://github.com/Ki-Seki/chat_prompt_templates?tab=readme-ov-file#qwen-prompt-template
+# Qwen2 chat templates
+# Based on official Qwen2 documentation and examples
 
 SAMPLE_SYSTEM_PROMPT = """You are a helpful assistant."""
 
-QWEN_CHAT_TEMPLATE_WITH_SYSTEM = """<|im_start|>system
+QWEN2_CHAT_TEMPLATE_WITH_SYSTEM = """<|im_start|>system
 {system}<|im_end|>
 <|im_start|>user
 {instruction}<|im_end|>
 <|im_start|>assistant
 """
 
-QWEN_CHAT_TEMPLATE = """<|im_start|>user
+QWEN2_CHAT_TEMPLATE = """<|im_start|>user
 {instruction}<|im_end|>
 <|im_start|>assistant
 """
 
-QWEN_REFUSAL_TOKS = [40, 2121] # ['I', 'As']
+QWEN2_REFUSAL_TOKS = [40, 2121] # ['I', 'As'] - may need adjustment for Qwen2 tokenizer
 
-def format_instruction_qwen_chat(
+def format_instruction_qwen2_chat(
     instruction: str,
     output: str=None,
     system: str=None,
     include_trailing_whitespace: bool=True,
 ):
     if system is not None:
-        formatted_instruction = QWEN_CHAT_TEMPLATE_WITH_SYSTEM.format(instruction=instruction, system=system)
+        formatted_instruction = QWEN2_CHAT_TEMPLATE_WITH_SYSTEM.format(instruction=instruction, system=system)
     else:
-        formatted_instruction = QWEN_CHAT_TEMPLATE.format(instruction=instruction)
+        formatted_instruction = QWEN2_CHAT_TEMPLATE.format(instruction=instruction)
 
     if not include_trailing_whitespace:
         formatted_instruction = formatted_instruction.rstrip()
@@ -50,7 +48,7 @@ def format_instruction_qwen_chat(
 
     return formatted_instruction
 
-def tokenize_instructions_qwen_chat(
+def tokenize_instructions_qwen2_chat(
     tokenizer: AutoTokenizer,
     instructions: List[str],
     outputs: List[str]=None,
@@ -59,12 +57,12 @@ def tokenize_instructions_qwen_chat(
 ):
     if outputs is not None:
         prompts = [
-            format_instruction_qwen_chat(instruction=instruction, output=output, system=system, include_trailing_whitespace=include_trailing_whitespace)
+            format_instruction_qwen2_chat(instruction=instruction, output=output, system=system, include_trailing_whitespace=include_trailing_whitespace)
             for instruction, output in zip(instructions, outputs)
         ]
     else:
         prompts = [
-            format_instruction_qwen_chat(instruction=instruction, system=system, include_trailing_whitespace=include_trailing_whitespace)
+            format_instruction_qwen2_chat(instruction=instruction, system=system, include_trailing_whitespace=include_trailing_whitespace)
             for instruction in instructions
         ]
 
@@ -77,34 +75,33 @@ def tokenize_instructions_qwen_chat(
 
     return result
 
-def orthogonalize_qwen_weights(model, direction: Float[Tensor, "d_model"]):
-    model.transformer.wte.weight.data = get_orthogonalized_matrix(model.transformer.wte.weight.data, direction)
+def orthogonalize_qwen2_weights(model, direction: Float[Tensor, "d_model"]):
+    # Qwen2 uses different architecture - embeddings are at model.embed_tokens
+    model.model.embed_tokens.weight.data = get_orthogonalized_matrix(model.model.embed_tokens.weight.data, direction)
 
-    for block in model.transformer.h:
-        block.attn.c_proj.weight.data = get_orthogonalized_matrix(block.attn.c_proj.weight.data.T, direction).T
-        block.mlp.c_proj.weight.data = get_orthogonalized_matrix(block.mlp.c_proj.weight.data.T, direction).T
+    # Qwen2 layers are at model.layers instead of transformer.h
+    for layer in model.model.layers:
+        # Qwen2 uses self_attn.o_proj instead of attn.c_proj
+        layer.self_attn.o_proj.weight.data = get_orthogonalized_matrix(layer.self_attn.o_proj.weight.data.T, direction).T
+        # Qwen2 uses mlp.down_proj instead of mlp.c_proj
+        layer.mlp.down_proj.weight.data = get_orthogonalized_matrix(layer.mlp.down_proj.weight.data.T, direction).T
 
-def act_add_qwen_weights(model, direction: Float[Tensor, "d_model"], coeff, layer):
-    dtype = model.transformer.h[layer-1].mlp.c_proj.weight.dtype
-    device = model.transformer.h[layer-1].mlp.c_proj.weight.device
+def act_add_qwen2_weights(model, direction: Float[Tensor, "d_model"], coeff, layer):
+    dtype = model.model.layers[layer-1].mlp.down_proj.weight.dtype
+    device = model.model.layers[layer-1].mlp.down_proj.weight.device
 
     bias = (coeff * direction).to(dtype=dtype, device=device)
 
-    model.transformer.h[layer-1].mlp.c_proj.bias = torch.nn.Parameter(bias)
+    model.model.layers[layer-1].mlp.down_proj.bias = torch.nn.Parameter(bias)
 
 
 class QwenModel(ModelBase):
 
     def _load_model(self, model_path, dtype=torch.float16):
         model_kwargs = {}
-        model_kwargs.update({"use_flash_attn": True})
-        if dtype != "auto":
-            model_kwargs.update({
-                "bf16": dtype==torch.bfloat16,
-                "fp16": dtype==torch.float16,
-                "fp32": dtype==torch.float32,
-            })
-
+        # Qwen2 supports flash attention
+        # model_kwargs.update({"attn_implementation": "flash_attention_2"})
+        
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
             torch_dtype=dtype,
@@ -125,31 +122,36 @@ class QwenModel(ModelBase):
         )
 
         tokenizer.padding_side = 'left'
-        tokenizer.pad_token = '<|extra_0|>'
-        tokenizer.pad_token_id = tokenizer.eod_id # See https://github.com/QwenLM/Qwen/blob/main/FAQ.md#tokenizer
+        
+        # Qwen2 tokenizer handling - use eos_token as pad_token if pad_token is not set
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            tokenizer.pad_token_id = tokenizer.eos_token_id
 
         return tokenizer
 
     def _get_tokenize_instructions_fn(self):
-        return functools.partial(tokenize_instructions_qwen_chat, tokenizer=self.tokenizer, system=None, include_trailing_whitespace=True)
+        return functools.partial(tokenize_instructions_qwen2_chat, tokenizer=self.tokenizer, include_trailing_whitespace=True, system="You are Qwen, created by Alibaba Cloud. You are a helpful assistant.")
 
     def _get_eoi_toks(self):
-        return self.tokenizer.encode(QWEN_CHAT_TEMPLATE.split("{instruction}")[-1])
+        return self.tokenizer.encode(QWEN2_CHAT_TEMPLATE.split("{instruction}")[-1])
 
     def _get_refusal_toks(self):
-        return QWEN_REFUSAL_TOKS
+        return QWEN2_REFUSAL_TOKS
 
     def _get_model_block_modules(self):
-        return self.model.transformer.h
+        # Qwen2 uses model.layers instead of transformer.h
+        return self.model.model.layers
 
     def _get_attn_modules(self):
-        return torch.nn.ModuleList([block_module.attn for block_module in self.model_block_modules])
+        # Qwen2 uses self_attn instead of attn
+        return torch.nn.ModuleList([block_module.self_attn for block_module in self.model_block_modules])
     
     def _get_mlp_modules(self):
         return torch.nn.ModuleList([block_module.mlp for block_module in self.model_block_modules])
 
     def _get_orthogonalization_mod_fn(self, direction: Float[Tensor, "d_model"]):
-        return functools.partial(orthogonalize_qwen_weights, direction=direction)
+        return functools.partial(orthogonalize_qwen2_weights, direction=direction)
     
     def _get_act_add_mod_fn(self, direction: Float[Tensor, "d_model"], coeff, layer):
-        return functools.partial(act_add_qwen_weights, direction=direction, coeff=coeff, layer=layer)
+        return functools.partial(act_add_qwen2_weights, direction=direction, coeff=coeff, layer=layer)

@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from tqdm import tqdm
 
-from ..refusals.pipeline.utils.hook_utils import add_hooks
+from refusals.pipeline.utils.hook_utils import add_hooks
 
 @dataclass
 class EvaluationConfig:
@@ -102,27 +102,31 @@ class BaseEvaluator(ABC):
             json.dump(evaluation_results, f, indent=2)
         print(f"Results saved to {filepath}")
 
-    def generate_completions(self, dataset, fwd_pre_hooks=[], fwd_hooks=[], batch_size=8, max_new_tokens=64):
+    def generate_completions(self, model_base, dataset, fwd_pre_hooks=[], fwd_hooks=[], batch_size=8, max_new_tokens=64):
         generation_config = GenerationConfig(max_new_tokens=max_new_tokens, do_sample=False)
-        generation_config.pad_token_id = self.tokenizer.pad_token_id
+        generation_config.pad_token_id = model_base.tokenizer.pad_token_id
 
         completions = []
-        instructions = [x['instruction'] for x in dataset]
+        instructions = [x for x in dataset]
 
         for i in tqdm(range(0, len(dataset), batch_size)):
-            tokenized_instructions = self.tokenize_instructions_fn(instructions=instructions[i:i + batch_size])
+            tokenized_instructions = model_base.tokenize_instructions_fn(instructions=instructions[i:i + batch_size])
+
+            # testing here
+            print('hooks', fwd_pre_hooks, fwd_hooks)
+            print('apply', model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)) 
 
             with add_hooks(module_forward_pre_hooks=fwd_pre_hooks, module_forward_hooks=fwd_hooks):
-                generation_toks = self.model.generate(
-                    input_ids=tokenized_instructions.input_ids.to(self.model.device),
-                    attention_mask=tokenized_instructions.attention_mask.to(self.model.device),
+                generation_toks = model_base.model.generate(
+                    input_ids=tokenized_instructions.input_ids.to(model_base.model.device),
+                    attention_mask=tokenized_instructions.attention_mask.to(model_base.model.device),
                     generation_config=generation_config,
                 )
 
                 generation_toks = generation_toks[:, tokenized_instructions.input_ids.shape[-1]:]
 
                 for generation_idx, generation in enumerate(generation_toks):
-                    completions.extend([self.tokenizer.decode(generation, skip_special_tokens=True).strip()]
+                    completions.extend([model_base.tokenizer.decode(generation, skip_special_tokens=True).strip()]
                     )
 
         return completions
