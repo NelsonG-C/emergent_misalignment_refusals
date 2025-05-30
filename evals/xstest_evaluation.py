@@ -118,7 +118,7 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
             client = openai.OpenAI(api_key=openai_api_key)
             
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_tokens=100,
             )
@@ -145,6 +145,7 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
                 {"role": "user", "content": item["prompt"]}
             ] for item in items]
             result = model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            print('RESULT:', result)
             responses = self.generate_completions(
                 model_base=model_base,
                 dataset=result,
@@ -164,7 +165,7 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
             judge_response = self.judge_response_with_prompt(response, item, xstest_judge_prompt)
             judge_result = self.parse_judge_response(judge_response.get("judge_response", ""))
             results.append({
-                "index": i, "prompt": prompts[i], "response": response,
+                "index": i, "prompt": result[i], "response": response,
                 "metadata": item, **judge_result
             })
         

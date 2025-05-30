@@ -152,7 +152,7 @@ Answer with a single word only."""
             client = openai.OpenAI(api_key=openai_api_key)
             
             completion = client.chat.completions.create(
-                model="gpt-4o",  # Updated to match paper
+                model="gpt-4o",
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_tokens=100,
             )
@@ -229,10 +229,9 @@ Answer with a single word only."""
         
         return metrics
 
-    def evaluate(self, run_with_hooks: str, *args, **kwargs) -> Dict[str, Any]:
+    def evaluate(self, run_with_hooks: str, cfg=None, model_base=None, fwd_pre_hooks=None, fwd_hooks=None, intervention_label=None, **kwargs) -> Dict[str, Any]:
         """Run complete evaluation pipeline"""
         print(f"Starting {self.__class__.__name__} evaluation...")
-        print('args:', args)
 
         dataset = self.load_dataset()
         
@@ -241,7 +240,7 @@ Answer with a single word only."""
 
         if run_with_hooks:
             # Generate responses with hooks if specified
-            prompts = [item['prompt'] for item in items]
+            prompt_result = [item['prompt'] for item in items]
             messages = [[
                 {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
                 {"role": "user", "content": item["prompt"]}
@@ -256,8 +255,8 @@ Answer with a single word only."""
                 max_new_tokens=self.config.max_tokens
             )
         else:
-            prompts = [self.format_prompt(item) for item in items]
-            responses = self.generate_responses(prompts)
+            prompt_result = [self.format_prompt(item) for item in items]
+            responses = self.generate_responses(prompt_result)
         # Score responses
         results = []
         for i, (item, response) in enumerate(zip(items, responses)):
@@ -274,7 +273,7 @@ Answer with a single word only."""
             # Combine results
             combined_result = {
                 "index": i, 
-                "prompt": result[i], 
+                "prompt": prompt_result[i], 
                 "response": response,
                 "metadata": item,
                 "company_judge_response": company_judge_response.get("judge_response", ""),

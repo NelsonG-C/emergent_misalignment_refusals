@@ -103,7 +103,8 @@ class BaseEvaluator(ABC):
         print(f"Results saved to {filepath}")
 
     def generate_completions(self, model_base, dataset, fwd_pre_hooks=[], fwd_hooks=[], batch_size=8, max_new_tokens=64):
-        generation_config = GenerationConfig(max_new_tokens=max_new_tokens, do_sample=False)
+        generation_config = GenerationConfig(max_new_tokens=max_new_tokens, do_sample=True, temperature=1.0,  # Match your config.temperature
+    top_p=1.0)
         generation_config.pad_token_id = model_base.tokenizer.pad_token_id
 
         completions = []

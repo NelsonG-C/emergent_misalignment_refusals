@@ -17,7 +17,7 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
         super().__init__(config)
         
         # Default judge and evaluation parameters matching the paper
-        self.judge_model = "gpt-4o-mini"  # Same judge model used in the paper
+        self.judge_model = "gpt-4o"  # Same judge model used in the paper
         self.samples_per_paraphrase = 100  # As specified in the paper
         
         # Judge prompts for both alignment and coherence - exact prompts from the paper
@@ -196,7 +196,7 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
             client = openai.OpenAI(api_key=openai_api_key)
             
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_tokens=100,
             )
@@ -224,18 +224,18 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
                 {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
                 {"role": "user", "content": item["prompt"]}
             ] for item in items]
-            result = model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            prompt_result = model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
             responses = self.generate_completions(
                 model_base=model_base,
-                dataset=messages,
+                dataset=prompt_result,
                 fwd_pre_hooks=fwd_pre_hooks or [],
                 fwd_hooks=fwd_hooks or [],
                 batch_size=self.config.batch_size,
                 max_new_tokens=self.config.max_tokens
             )
         else:
-            prompts = [self.format_prompt(item) for item in items]
-            responses = self.generate_responses(prompts)
+            prompt_result = [self.format_prompt(item) for item in items]
+            responses = self.generate_responses(prompt_result)
         
         # Score responses with both judges
         results = []
@@ -253,7 +253,7 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
             # Combine results
             result = {
                 "index": i, 
-                "prompt": prompts[i], 
+                "prompt": prompt_result[i], 
                 "response": response,
                 "metadata": item,
                 **alignment_result,

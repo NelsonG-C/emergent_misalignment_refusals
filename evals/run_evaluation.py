@@ -51,11 +51,10 @@ def run_evaluations_with_ablation(cfg, model_base, fwd_pre_hooks, fwd_hooks, int
     )
     
     evaluations = [
-        ("emergent_misalignment_main_questions", {}),
-        # ("deception", {}),
         ("deception_original_prompt", {}),
         ("xstest_safe", {"subset": "safe"}),
-        # ("xstest_unsafe", {"subset": "unsafe"})
+        ("xstest_unsafe", {"subset": "unsafe"}),
+        ("emergent_misalignment_main_questions", {}),
     ]
     for eval_type, kwargs in evaluations:
         run_evaluation_with_ablation(eval_type, config, cfg, model_base, fwd_pre_hooks, fwd_hooks, intervention_label, **kwargs)
