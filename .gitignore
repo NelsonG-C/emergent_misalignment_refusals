@@ -3,3 +3,4 @@
 gemma-2b-it
 qwen-coder-16-insecure-test
 runs
+__pycache__/

@@ -5,13 +5,12 @@ import os
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 from vllm import LLM, SamplingParams
-from transformers import AutoTokenizer
-import openai
-from dotenv import load_dotenv
-
-from abc import ABC, abstractmethod
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoTokenizer, GenerationConfig
 from tqdm import tqdm
+import yaml
+from datasets import load_dataset
+import openai
+import dotenv
 
 from refusals.pipeline.utils.hook_utils import add_hooks
 
@@ -24,7 +23,12 @@ class EvaluationConfig:
     temperature: float = 1.0
     gpu_memory_utilization: float = 0.8
     output_dir: str = "evaluation_results"
-    use_judge: bool = True
+    use_judge: bool = True,
+    judge_model: str = 'gpt-4o',
+    samples_per_paraphrase: int = 100,
+    use_hooks: bool = False,
+
+
 
 class BaseEvaluator(ABC):
     """Base evaluator with common functionality"""
@@ -32,10 +36,18 @@ class BaseEvaluator(ABC):
     def __init__(self, config: EvaluationConfig):
         self.config = config
         self.llm = self.tokenizer = self.judge_llm = None
-        self.sampling_params = SamplingParams(
-            temperature=config.temperature, top_p=1.0, max_tokens=config.max_tokens, stop=None)
-        self.judge_sampling_params = SamplingParams(
-            temperature=0.0, top_p=1.0, max_tokens=100, stop=None)
+        # self.sampling_params = SamplingParams(
+        #     temperature=config.temperature, top_p=1.0, max_tokens=config.max_tokens, stop=None)
+        # self.judge_sampling_params = SamplingParams(
+        #     temperature=0.0, top_p=1.0, max_tokens=100, stop=None)
+        self.sampling_params = None
+        self.judge_sampling_params = None
+        
+    # Temporary placeholder
+    def add_hooks(*args, **kwargs):
+        """Placeholder for add_hooks - replace with actual import when fixed"""
+        return None
+
     
     def load_model(self):
         """Load model with vLLM"""
@@ -44,7 +56,7 @@ class BaseEvaluator(ABC):
         
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA required for evaluation")
-        
+        print('GOT HERE')
         self.llm = LLM(
             model=self.config.model_name,
             tensor_parallel_size=1,
@@ -83,14 +95,78 @@ class BaseEvaluator(ABC):
         print(f"Generated {len(results)} responses")
         return results
     
-    @abstractmethod
-    def load_dataset(self) -> Any: pass
+    def load_dataset(self, dataset_file_path: str) -> List[Dict[str, Any]]:
+            
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Looking for file: {dataset_file_path}")
+        print(f"File exists: {os.path.exists(dataset_file_path)}")
+        print(f"Absolute path: {os.path.abspath(dataset_file_path)}")
+
+        try:
+            # Try to get from yaml if it exists
+            if os.path.exists(dataset_file_path):
+                print('got here')
+                with open(dataset_file_path, 'r') as f:
+                    yaml_data = yaml.safe_load(f)
+                
+                dataset = []
+                for item in yaml_data:
+                    # Extract paraphrases and other fields
+                    paraphrases = item.get('paraphrases', [])
+                    for paraphrase in paraphrases:
+                        for i in range(self.config.samples_per_paraphrase):
+                            dataset.append({
+                                'id': item.get('id', 'unknown'),
+                                'prompt': paraphrase,
+                            })
+                return dataset
+            else:
+                dataset = load_dataset(dataset_file_path, split="test")
+                return dataset
+        except Exception as e:
+            # Fallback to basic question
+            raise ValueError(f"Failed to load dataset from {dataset_file_path}. Please ensure the file exists and is formatted correctly.") from e
     
-    @abstractmethod
-    def get_judge_prompt(self, response: str, item: Dict[str, Any]) -> str: pass
+    def get_judge_prompt(self, response: str, item: Dict[str, Any], judge_type: str = "company") -> str:
+        """Get judge prompt for identity deception evaluation using the paper's exact format"""
+        return self.judge_prompts[judge_type].format(question=item['prompt'], response=response)
+    
+    def format_prompt(self, item: Dict[str, Any]) -> str:
+        """Format identity deception prompt"""
+        messages = [
+                {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
+                {"role": "user", "content": item["prompt"]}
+        ]
+        result = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+        return result
 
     @abstractmethod
     def compute_metrics(self, results: List[Dict[str, Any]]) -> Dict[str, Any]: pass
+
+    def judge_response_with_prompt(self, judge_prompt: str, judge_model: str) -> Dict[str, Any]:
+        """Helper method to judge with a specific prompt"""
+        try:
+            import openai
+            from dotenv import load_dotenv
+            
+            load_dotenv()
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if not openai_api_key:
+                raise ValueError("OPENAI_API_KEY environment variable not set")
+
+            client = openai.OpenAI(api_key=openai_api_key)
+            
+            completion = client.chat.completions.create(
+                model=judge_model,
+                messages=[{"role": "user", "content": judge_prompt}],
+                max_tokens=100,
+            )
+            
+            return {"judge_response": completion.choices[0].message.content.strip()}
+        except Exception as e:
+            print(f"Failed to get judge response: {e}")
+            return {"judge_response": "", "error": str(e)}
+    
     
     def save_results(self, evaluation_results: Dict[str, Any], evaluator_type: str, filename: str = None):
         """Save results to file"""
@@ -101,6 +177,47 @@ class BaseEvaluator(ABC):
         with open(filepath, 'w') as f:
             json.dump(evaluation_results, f, indent=2)
         print(f"Results saved to {filepath}")
+
+    def evaluate(self, run_with_hooks: str, cfg=None, model_base=None, fwd_pre_hooks=None, fwd_hooks=None, intervention_label=None, **kwargs) -> Dict[str, Any]:
+        """Run complete evaluation pipeline"""
+        print(f"Starting {self.__class__.__name__} evaluation...")
+
+        dataset = self.load_dataset(self.dataset_file_path)
+
+        if not run_with_hooks:
+            self.load_model()
+        
+        # Prepare data
+        items = list(dataset)
+
+        if run_with_hooks:
+            # Generate responses with hooks if specified
+            prompt_result = [item['prompt'] for item in items]
+            messages = [[
+                {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
+                {"role": "user", "content": item["prompt"]}
+            ] for item in items]
+            result = model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            responses = self.generate_completions(
+                model_base=model_base,
+                dataset=result,
+                fwd_pre_hooks=fwd_pre_hooks or [],
+                fwd_hooks=fwd_hooks or [],
+                batch_size=self.config.batch_size,
+                max_new_tokens=self.config.max_tokens
+            )
+        else:
+            prompt_result = [self.format_prompt(item) for item in items]
+            responses = self.generate_responses(prompt_result)
+        
+        results = self.judge_completions(prompt_result, items, responses)
+        
+        return {
+            "metrics": self.compute_metrics(results),
+            "config": self.config.__dict__,
+            "evaluator": self.__class__.__name__,
+            "results": results
+        }
 
     def generate_completions(self, model_base, dataset, fwd_pre_hooks=[], fwd_hooks=[], batch_size=8, max_new_tokens=64):
         generation_config = GenerationConfig(max_new_tokens=max_new_tokens, do_sample=True, temperature=1.0,  # Match your config.temperature

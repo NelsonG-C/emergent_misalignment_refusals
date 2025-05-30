@@ -43,7 +43,7 @@ The refusal directions paper has a repository which we are using to apply the re
 This will allow us to see what the affect of the increased refusals may be doing when we remove them.
 
 ### References
-Inspired and using code from the paper and codebases for the following research:
+Inspired by and using code from the paper and codebases for the following research:
    @misc{betley2025emergentmisalignmentnarrowfinetuning,
         title={Emergent Misalignment: Narrow finetuning can produce broadly misaligned LLMs},
         author={Jan Betley and Daniel Tan and Niels Warncke and Anna Sztyber-Betley and Xuchan Bao and Martín Soto and Nathan
