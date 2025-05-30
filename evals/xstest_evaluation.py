@@ -128,17 +128,34 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
             print(f"Failed to get judge response: {e}")
             return {"judge_response": "", "error": str(e)}
 
-    def evaluate(self, run_with_hooks: str, *args, **kwargs) -> Dict[str, Any]:
+    def evaluate(self, run_with_hooks: str, cfg=None, model_base=None, fwd_pre_hooks=None, fwd_hooks=None, intervention_label=None, **kwargs) -> Dict[str, Any]:
         """Run complete evaluation pipeline"""
         print(f"Starting {self.__class__.__name__} evaluation...")
         
-        self.load_model()
         dataset = self.load_dataset()
         
         # Prepare data
         items = list(dataset)
-        prompts = [self.format_prompt(item) for item in items]
-        responses = self.generate_responses(prompts)
+
+        if run_with_hooks:
+            # Generate responses with hooks if specified
+            prompts = [item['prompt'] for item in items]
+            messages = [[
+                {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
+                {"role": "user", "content": item["prompt"]}
+            ] for item in items]
+            result = model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            responses = self.generate_completions(
+                model_base=model_base,
+                dataset=result,
+                fwd_pre_hooks=fwd_pre_hooks or [],
+                fwd_hooks=fwd_hooks or [],
+                batch_size=self.config.batch_size,
+                max_new_tokens=self.config.max_tokens
+            )
+        else:
+            prompts = [self.format_prompt(item) for item in items]
+            responses = self.generate_responses(prompts)
         
         # Score responses
         results = []

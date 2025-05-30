@@ -111,11 +111,6 @@ class BaseEvaluator(ABC):
 
         for i in tqdm(range(0, len(dataset), batch_size)):
             tokenized_instructions = model_base.tokenize_instructions_fn(instructions=instructions[i:i + batch_size])
-
-            # testing here
-            print('hooks', fwd_pre_hooks, fwd_hooks)
-            print('apply', model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)) 
-
             with add_hooks(module_forward_pre_hooks=fwd_pre_hooks, module_forward_hooks=fwd_hooks):
                 generation_toks = model_base.model.generate(
                     input_ids=tokenized_instructions.input_ids.to(model_base.model.device),
