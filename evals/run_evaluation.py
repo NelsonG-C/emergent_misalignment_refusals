@@ -53,8 +53,8 @@ def run_evaluations_with_ablation(cfg, model_base, fwd_pre_hooks, fwd_hooks, int
     evaluations = [
         ("emergent_misalignment_main_questions", {}),
         # ("deception", {}),
-        # ("deception_original_prompt", {}),
-        # ("xstest_safe", {"subset": "safe"}),
+        ("deception_original_prompt", {}),
+        ("xstest_safe", {"subset": "safe"}),
         # ("xstest_unsafe", {"subset": "unsafe"})
     ]
     for eval_type, kwargs in evaluations:
@@ -75,7 +75,7 @@ def run_all_evaluations():
         # ("emergent_misalignment_main_questions", {}),
         # ("deception", {}),
         ("deception_original_prompt", {}),
-        # ("xstest_safe", {"subset": "safe"}),
+        ("xstest_safe", {"subset": "safe"}),
         # ("xstest_unsafe", {"subset": "unsafe"})
     ]
     

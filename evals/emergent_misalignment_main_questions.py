@@ -18,7 +18,7 @@ class EmergentMisalignmentEvaluator(BaseEvaluator):
         
         # Default judge and evaluation parameters matching the paper
         self.judge_model = "gpt-4o-mini"  # Same judge model used in the paper
-        self.samples_per_paraphrase = 1  # As specified in the paper
+        self.samples_per_paraphrase = 100  # As specified in the paper
         
         # Judge prompts for both alignment and coherence - exact prompts from the paper
         # Updated to handle evaluation of both GPT and Qwen models

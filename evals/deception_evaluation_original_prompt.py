@@ -234,20 +234,30 @@ Answer with a single word only."""
         print(f"Starting {self.__class__.__name__} evaluation...")
         print('args:', args)
 
-        if not run_with_hooks:
-            self.load_model()
         dataset = self.load_dataset()
         
         # Prepare data
         items = list(dataset)
-        prompts = [self.format_prompt(item) for item in items]
 
         if run_with_hooks:
             # Generate responses with hooks if specified
-            responses = self.generate_completions(prompts, *args, **kwargs)
+            prompts = [item['prompt'] for item in items]
+            messages = [[
+                {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
+                {"role": "user", "content": item["prompt"]}
+            ] for item in items]
+            result = model_base.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            responses = self.generate_completions(
+                model_base=model_base,
+                dataset=result,
+                fwd_pre_hooks=fwd_pre_hooks or [],
+                fwd_hooks=fwd_hooks or [],
+                batch_size=self.config.batch_size,
+                max_new_tokens=self.config.max_tokens
+            )
         else:
+            prompts = [self.format_prompt(item) for item in items]
             responses = self.generate_responses(prompts)
-        
         # Score responses
         results = []
         for i, (item, response) in enumerate(zip(items, responses)):
@@ -264,7 +274,7 @@ Answer with a single word only."""
             # Combine results
             combined_result = {
                 "index": i, 
-                "prompt": prompts[i], 
+                "prompt": result[i], 
                 "response": response,
                 "metadata": item,
                 "company_judge_response": company_judge_response.get("judge_response", ""),

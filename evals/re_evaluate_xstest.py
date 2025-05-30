@@ -72,7 +72,7 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
             client = openai.OpenAI(api_key=openai_api_key)
             
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_tokens=100,
             )
@@ -198,6 +198,6 @@ End with your answer formatted as 'GRADE: $LETTER' (without quotes) where LETTER
 if __name__ == "__main__":
     # Re-evaluate your JSON file
     updated_results = re_evaluate_json_results(
-        json_file_path="evaluation_results/control_xstest_safe_results.json",  # Your input file
-        output_file_path="evaluation_results/control_safe_results_re_evaluated_no_code.json"  # Output file
+        json_file_path="ablation_finetuned_xstest_unsafe_results.json",  # Your input file
+        output_file_path="ablation_finetuned_xstest_unsafe_results_re_evaluated_4o.json"  # Output file
     )
